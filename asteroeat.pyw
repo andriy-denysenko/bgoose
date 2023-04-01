@@ -2,23 +2,32 @@ import pygame
 from pygame. constants import QUIT, K_DOWN, K_UP, K_LEFT, K_RIGHT
 import random
 
-def show_score():
-    main_surface.blit(status_bar, status_bar_rect)
-    main_surface.blit(font.render(str(score), True, GREEN), (width - 100, 0) )
-    main_surface.blit(font.render(str(enemy_score), True, VIOLET), (100, 0) )
+def show_score(show_bottom_line=True):
+    #main_surface.blit(status_bar, status_bar_rect)
+    main_surface.blit(font.render(f"Ви з'їли: {score}", True, GREEN), (width - 200, 0) )
+    main_surface.blit(font.render(f"Ненажери з'їли: {enemy_score}", True, VIOLET), (30, 0) )
+    main_surface.blit(font.render(f"Ненажер: {len(enemies)}", True, YELLOW), (350, 0) )
+    if show_bottom_line:
+        message = "          Смачного!          "
+        if score > (max_score / 3 * 2):
+            message = "   Ненажери полюють на вас   "
+        elif score > max_score / 3:
+            message = "Ненажери полюють на астероїди"
+        main_surface.blit(font.render(message, True, WHITE), (240, height - 40) )
 
 def won_lost():
 
     main_surface.blit(bg, (0, 0))
 
-    show_score()
+    show_score(False)
 
     s = "***  На здоров'ячко!  ***"
     if not win:
-        s = "***    Скуштуй ще     ***"
+        s = "***    Спробуй ще     ***"
 
-    result_font = pygame.font.SysFont('Verdana', 32)
-    main_surface.blit(result_font.render(s, True, YELLOW), (200, 280) )
+    result_font = pygame.font.SysFont('monospace', 32)
+    result_font.set_bold(True)
+    main_surface.blit(result_font.render(s, True, YELLOW), (170, 280) )
     
     while True:
         for event in pygame.event.get():
@@ -203,7 +212,8 @@ GREEN = 78, 153, 67
 VIOLET = 163, 77, 253
 YELLOW = 232, 253, 77
 
-font = pygame.font.SysFont('Verdana', 20)
+font = pygame.font.SysFont('monospace', 20)
+font.set_bold(True)
 
 # Main surface setup
 screen = width, height = 800, 600
@@ -221,15 +231,18 @@ player = Sprite('player.png', 0, 0, max_speed)
 player.center(width, height)
 
 # Score ribbon
-status_bar = pygame.Surface((width, 40))
-status_bar.fill(YELLOW)
-status_bar_rect = status_bar.get_rect()
+# status_bar = pygame.Surface((width, 40))
+# status_bar.fill(YELLOW)
+# status_bar_rect = status_bar.get_rect()
 
 # Enemies setup
 CREATE_ENEMY = pygame.USEREVENT + 1
-pygame.time.set_timer(CREATE_ENEMY, 1500)
+CREATE_ENEMY_INTERVAL = 1500
+CREATE_ENEMY_STEP = 50
+pygame.time.set_timer(CREATE_ENEMY, CREATE_ENEMY_INTERVAL)
 enemies = []
 enemy_view_range = 100
+MAX_ENEMIES = 10
 
 # Bonuses setup
 CREATE_BONUS = pygame.USEREVENT + 2
@@ -237,12 +250,15 @@ pygame.time.set_timer(CREATE_BONUS, 2000)
 bonuses = []
 
 score = 0
-max_score = 10
+max_score = 42
 enemy_score = 0
 win = False
 game_over = False
 
 ### Game loop ###
+
+# TODO: more meanies, faster move
+# TODO: animate sprites
 
 is_working = True
 while is_working:
@@ -254,7 +270,7 @@ while is_working:
     for event in pygame.event.get():
         if event.type == QUIT:
             is_working = False
-        if event.type == CREATE_ENEMY:
+        if event.type == CREATE_ENEMY and len(enemies) < MAX_ENEMIES:
             enemies.append(create_enemy())
         if event.type == CREATE_BONUS:
             bonuses.append(create_bonus())
@@ -289,17 +305,12 @@ while is_working:
                 if enemy.sees(bonus):
                     enemy.turn_to(bonus)
                     break
-                    
-                
-            
-
-
-        
+                           
         enemy.move()
 
         enemy.blit(main_surface)
 
-        if enemy.rect.right < 0:
+        if enemy.get_right() < 0 or enemy.get_bottom() < 0 or enemy.get_left() > width or enemy.get_top() > height:
             enemies.pop(enemies.index(enemy))
         # If the same enemy collides both with the left border and the player
         elif player.collides(enemy):
@@ -318,12 +329,17 @@ while is_working:
 
         bonus.blit(main_surface)
 
-        if bonus.get_left() > width:
+        if bonus.get_right() < 0 or bonus.get_bottom() < 0 or bonus.get_left() > width or bonus.get_top() > height:
             bonuses.pop(bonuses.index(bonus))
 
         elif player.collides(bonus):
             bonuses.pop(bonuses.index(bonus))
             score += 1
+            CREATE_ENEMY_INTERVAL -= CREATE_ENEMY_STEP
+            if CREATE_ENEMY_INTERVAL <= 600:
+                CREATE_ENEMY_INTERVAL = 600
+            pygame.time.set_timer(CREATE_ENEMY, CREATE_ENEMY_INTERVAL)
+
             if score >= max_score:
                 win = True
                 game_over = True
