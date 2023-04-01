@@ -3,6 +3,7 @@ from pygame. constants import QUIT, K_DOWN, K_UP, K_LEFT, K_RIGHT
 import random
 
 def show_score():
+    main_surface.blit(status_bar, status_bar_rect)
     main_surface.blit(font.render(str(score), True, GREEN), (width - 100, 0) )
     main_surface.blit(font.render(str(enemy_score), True, VIOLET), (100, 0) )
 
@@ -27,32 +28,108 @@ def won_lost():
                 quit()
 
         pygame.display.update()
-        clock.tick(15)
+        FPS.tick(15)
 
 class Sprite:
-    def __init__(self, image_file):
+    def __init__(self, image_file, left = 0, top = 0, speed = 0, view_range = 50):
+        self.name = image_file
         self.sprite = pygame.image.load(image_file).convert_alpha()
 
-        # Set horizontal speed and direction
-        self.speedX = random.randint(-5, 5)
+        # Set width and height
+        self.width = self.sprite.get_width()
+        self.height = self.sprite.get_height()
 
-        # Set vertical speed and direction
-        self.speedY = random.randint(-5, 5)
+        # Set Rect
 
-        self.rect = None
-        left, top = 0, 0
+        self.left = left
+        self.top = top
 
+        self.rect = pygame.Rect(self.left, self.top, *self.sprite.get_size())
+
+        # Set speed
+        self.speed = speed
+        self.speedX = 0
+        self.speedY = 0
+
+        # Set view range
+        self.view_range = view_range
+
+    def set_left(self, left):
+        self.left = left
+        self.rect = pygame.Rect(self.left, self.top, *self.sprite.get_size())
+
+    def set_top(self, top):
+        self.top = top
+        self.rect = pygame.Rect(self.left, self.top, *self.sprite.get_size())
+
+    def center(self, screen_width, screen_height):
+        self.rect.centerx = int(screen_width / 2)
+        self.rect.centery = int(screen_height / 2)
+
+    def set_random_direction(self, screen_width, screen_height):
+        # Set speed and direction
+        self.speed = random.randint(2, 5)
+
+        vertical = random.randint(0, 1)
+        if vertical:
+            self.speedX = 0
+            up = random.randint(0, 1)
+            if up:
+                self.speedY = -self.speed
+            else:
+                self.speedY = self.speed
+        else:
+            self.speedY = 0
+            left = random.randint(0, 1)
+            if left:
+                self.speedX = -self.speed
+            else:
+                self.speedX = self.speed
+
+        if vertical:
+            # If moving down, place to the top of the screen
+            if self.speedY > 0:
+                self.top = -self.sprite.get_height()
+            # If moving up, place to the bottom of the screen
+            else:
+                self.top = screen_height
+
+
+        # If moving right, place to the left of the screen
         if self.speedX > 0:
-            left = -self.sprite.get_width()
+            self.left = -self.sprite.get_width()
+        # If moving right, place to the right of the screen
         else:
-            left = width
+            self.left = screen_width
 
-        if self.speedY > 0:
-            top = -self.sprite.get_height()
+
+    def collides(self, sprite):
+        return self.rect.colliderect(sprite.rect)
+
+    def sees(self, sprite):
+        self.view_rect = pygame.Rect(self.rect.left - self.view_range,\
+            self.rect.top - self.view_range,\
+            self.rect.right + self.view_range,\
+            self.rect.bottom + self.view_range)
+
+        return self.view_rect.colliderect(sprite.rect)
+
+    def turn_to(self, sprite):
+        dX = sprite.get_left() - self.get_left()
+        dY = sprite.get_top() - self.get_top()
+        if dX < 0: # other is at the left
+            self.speedX = -self.speed
+        elif dX > 0: # other is at the right
+            self.speedX = self.speed
         else:
-            top = height
+            self.speedX = 0
 
-        self.rect = pygame.Rect(left, top, *self.sprite.get_size())
+        if dY < 0: # other is at the top
+            self.speedY = -self.speed
+        elif dY > 0: # other is at the bottom
+            self.speedY = self.speed
+        else:
+            self.speedY = 0
 
     def get_width(self):
         return self.rect.width
@@ -66,52 +143,49 @@ class Sprite:
     def get_top(self):
         return self.rect.top
 
+    def get_right(self):
+        return self.rect.right
+
+    def get_bottom(self):
+        return self.rect.bottom
+
     def move(self):
-        self.rect = self.rect.move(self.speedX, self.speedY)
+        self.rect = self.rect.move(self.speedX * self.speed, self.speedY * self.speed)
+        # print(f'Moving {self.name} {self.speedX * self.speed}, {self.speedY * self.speed} at {self.left}, {self.top}')
 
+    def stop(self):
+        self.speedX = 0
+        self.speedY = 0
 
-def create_sprite(stype):
+    def blit(self, surface):
+        surface.blit(self.sprite, self.rect)
+
+    def set_random_speed(self):
+        self.speed = random.randint(2, max_speed)
+
+    def set_speed(self, speed):
+        self.speed = speed
+
+def create_enemy():
     fname = 'meanie.png'
-    if stype != 'enemy':
-        fname = 'bonus.png'
-    return Sprite(fname)
+    sprite = Sprite(fname)
+    sprite.set_left(width)
+    sprite.set_top(random.randint(0, height - sprite.get_height()))
+    sprite.speedX = -1
+    sprite.set_random_speed()
+    # print(f'Created enemy moving {sprite.speedX}, {sprite.speedY} at {sprite.left}, {sprite.top}')
+    return sprite
 
-# def create_sprite1(stype):
-#     '''Creates a sprite of a specified type'''
-#     sprite = None
-#     sprite_speed = random.randint(2, 5)
-#     if random.randint(0, 1):
-#         sprite_speed = -sprite_speed
+def create_bonus():
+    fname = 'bonus.png'
+    sprite = Sprite(fname)
+    sprite.set_left(random.randint(0, width - sprite.get_width()))
+    sprite.set_top(-sprite.get_height())
+    sprite.speedY = 1
+    sprite.set_random_speed()
+    # print(f'Created bonus moving {sprite.speedX}, {sprite.speedY} at {sprite.left}, {sprite.top}')
+    return sprite
 
-#     sprite_rect = None
-
-#     sprite_direction_vertical = False
-#     if random.randint(0, 1):
-#         sprite_direction_vertical = True
-
-#     if stype == 'enemy':
-#         sprite = pygame.image.load('meanie.png').convert_alpha()
-#     else:
-#         sprite = pygame.image.load('bonus.png').convert_alpha()
-
-#     left, top = 0, 0
-
-#     if sprite_direction_vertical:
-#         left = random.randint(0, width - sprite.get_width())
-#         if sprite_speed > 0:
-#             top  = -sprite.get_height()
-#         else:
-#             top = height
-#     else:
-#         top = random.randint(0, height - sprite.get_height())
-#         if sprite_speed > 0:
-#             left  = -sprite.get_width()
-#         else:
-#             left = width
-
-#     sprite_rect = pygame.Rect(left, top, *sprite.get_size())
-    
-#     return [sprite, sprite_rect, sprite_speed, sprite_direction_vertical]
 
 ### Setup ###
 
@@ -129,13 +203,6 @@ GREEN = 78, 153, 67
 VIOLET = 163, 77, 253
 YELLOW = 232, 253, 77
 
-SPRITE = 0
-SPRITE_RECT = 1
-SPRITE_SPEED = 2
-SPRITE_DIRECTION_VERTICAL = 3
-
-clock = pygame.time.Clock()
-
 font = pygame.font.SysFont('Verdana', 20)
 
 # Main surface setup
@@ -147,10 +214,16 @@ bgX = 0
 bgX2 = bg.get_width()
 bg_speed = 3
 
+max_speed = 3
+
 # Player setup
-player = pygame.image.load('player.png').convert_alpha()
-player_rect = pygame.Rect(int(width / 2) - int(player.get_width() / 2), int(height / 2) - int(player.get_height() / 2), *player.get_size())
-player_speed = 5
+player = Sprite('player.png', 0, 0, max_speed)
+player.center(width, height)
+
+# Score ribbon
+status_bar = pygame.Surface((width, 40))
+status_bar.fill(YELLOW)
+status_bar_rect = status_bar.get_rect()
 
 # Enemies setup
 CREATE_ENEMY = pygame.USEREVENT + 1
@@ -164,7 +237,7 @@ pygame.time.set_timer(CREATE_BONUS, 2000)
 bonuses = []
 
 score = 0
-max_score = 3
+max_score = 10
 enemy_score = 0
 win = False
 game_over = False
@@ -182,9 +255,9 @@ while is_working:
         if event.type == QUIT:
             is_working = False
         if event.type == CREATE_ENEMY:
-            enemies.append(create_sprite('enemy'))
+            enemies.append(create_enemy())
         if event.type == CREATE_BONUS:
-            bonuses.append(create_sprite('bonus'))
+            bonuses.append(create_bonus())
 
     # Fill the main surface
     bgX -= bg_speed
@@ -199,56 +272,38 @@ while is_working:
     main_surface.blit(bg, (bgX2, 0))
 
     # Draw the player
-    main_surface.blit(player, player_rect)
+    player.blit(main_surface)
 
     show_score()
 
     # Process enemies
 
     for enemy in enemies:
-        # Calculate the view range
-        minX = enemy.get_left() - enemy_view_range
-        minY = enemy.get_top() - enemy_view_range
+        # Turn to the first bonus in the view field
+        # Over 2/3: meanies go to player
+        if score > max_score / 3 * 2 and enemy.sees(player):
+            enemy.turn_to(player)
+        # Over 1/3: meanies go to bonuses
+        elif score > max_score / 3:
+            for bonus in bonuses:
+                if enemy.sees(bonus):
+                    enemy.turn_to(bonus)
+                    break
+                    
+                
+            
 
-        rangeW = enemy_view_range * 2 + enemy.get_width()
-        rangeH = enemy_view_range * 2 + enemy.get_height()
 
-        view_range = pygame.Rect(minX, minY, rangeW, rangeH)
-
-        # Check if an asteroid is near and change direction to the nearest
-        nearest_bonus = None
-        mindX = enemy_view_range
-        mindY = enemy_view_range
-
-        for bonus in bonuses:
-            if bonus.rect.colliderect(view_range):
-                dX = bonus.get_left() - enemy.get_left()
-                dY = bonus.get_top() < enemy.get_top()
-                if mindX > dX and mindY > dY:
-                    mindX = dX
-                    mindY = dY
-                    nearest_bonus = bonus
         
-        if nearest_bonus:
-            if mindX < 0 and enemy.speedX > 0:
-                enemy.speedX = - enemy.speedX
-            elif mindX > 0 and enemy.speedX < 0:
-                enemy.speedX = - enemy.speedX
-
-            if mindY < 0 and enemy.speedY > 0:
-                enemy.speedY = - enemy.speedY
-            elif mindY > 0 and enemy.speedY < 0:
-                enemy.speedY = - enemy.speedY
-
-
         enemy.move()
 
-        main_surface.blit(enemy.sprite, enemy.rect)
+        enemy.blit(main_surface)
 
         if enemy.rect.right < 0:
             enemies.pop(enemies.index(enemy))
         # If the same enemy collides both with the left border and the player
-        elif player_rect.colliderect(enemy.rect):
+        elif player.collides(enemy):
+            # print(f'Player collides with {enemy.get_left()}, {enemy.get_top()}')
             enemies.pop(enemies.index(enemy))
             score -= 1
             if score < 0:
@@ -261,12 +316,12 @@ while is_working:
     for bonus in bonuses:
         bonus.move()
 
-        main_surface.blit(bonus.sprite, bonus.rect)
+        bonus.blit(main_surface)
 
         if bonus.get_left() > width:
             bonuses.pop(bonuses.index(bonus))
 
-        elif player_rect.colliderect(bonus.rect):
+        elif player.collides(bonus):
             bonuses.pop(bonuses.index(bonus))
             score += 1
             if score >= max_score:
@@ -275,7 +330,7 @@ while is_working:
 
         else:
             for enemy in enemies:
-                if bonus.rect.colliderect(enemy.rect):
+                if bonus.collides(enemy):
                     if bonus in bonuses:
                         bonuses.pop(bonuses.index(bonus))
                         enemy_score += 1
@@ -287,15 +342,17 @@ while is_working:
 
     pressed_keys = pygame.key.get_pressed()
 
-    if pressed_keys[K_DOWN] and not player_rect.bottom >= height:
-         player_rect = player_rect.move(0, player_speed)
-    elif pressed_keys[K_UP] and not player_rect.top <= 0:
-         player_rect = player_rect.move(0, -player_speed)
+    if pressed_keys[K_DOWN] and player.get_bottom() < height:
+         player.speedY = player.speed
+    elif pressed_keys[K_UP] and player.get_top() > 0:
+         player.speedY = -player.speed
 
-    if pressed_keys[K_LEFT] and not player_rect.left <= 0:
-         player_rect = player_rect.move(-player_speed, 0)
-    elif pressed_keys[K_RIGHT] and not player_rect.right >= width:
-         player_rect = player_rect.move(player_speed, 0)
+    if pressed_keys[K_LEFT] and player.get_left() > 0:
+         player.speedX = -player.speed
+    elif pressed_keys[K_RIGHT] and player.get_right() < width:
+         player.speedX = player.speed
+    player.move()
+    player.stop()
 
     # Redraw the game
     pygame.display.flip()
