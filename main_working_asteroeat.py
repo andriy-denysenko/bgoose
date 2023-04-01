@@ -27,91 +27,47 @@ def won_lost():
                 quit()
 
         pygame.display.update()
-        clock.tick(15)
+        clock.tick(15) 
 
-class Sprite:
-    def __init__(self, image_file):
-        self.sprite = pygame.image.load(image_file).convert_alpha()
+def create_sprite(stype):
+    '''Creates a sprite of a specified type'''
+    sprite = pygame.Surface((20, 20))
+    sprite_speed = random.randint(2, 5)
+    if random.randint(0, 1):
+        sprite_speed = -sprite_speed
 
-        # Set horizontal speed and direction
-        self.speedX = random.randint(-5, 5)
+    sprite_rect = None
 
-        # Set vertical speed and direction
-        self.speedY = random.randint(-5, 5)
+    #TODO: make a sprite appear from the left/right/top/bottom
+    #TODO: and make speed for each sprite
 
-        self.rect = None
-        left, top = 0, 0
+    sprite_direction_vertical = False
+    if random.randint(0, 1):
+        sprite_direction_vertical = True
 
-        if self.speedX > 0:
-            left = -self.sprite.get_width()
+    if stype == 'enemy':
+        sprite = pygame.image.load('meanie.png').convert_alpha()
+    else:
+        sprite = pygame.image.load('bonus.png').convert_alpha()
+
+    left, top = 0, 0
+
+    if sprite_direction_vertical:
+        left = random.randint(0, width - sprite.get_width())
+        if sprite_speed > 0:
+            top  = -sprite.get_height()
+        else:
+            top = height
+    else:
+        top = random.randint(0, height - sprite.get_height())
+        if sprite_speed > 0:
+            left  = -sprite.get_width()
         else:
             left = width
 
-        if self.speedY > 0:
-            top = -self.sprite.get_height()
-        else:
-            top = height
-
-        self.rect = pygame.Rect(left, top, *self.sprite.get_size())
-
-    def get_width(self):
-        return self.rect.width
-
-    def get_height(self):
-        return self.rect.height
-
-    def get_left(self):
-        return self.rect.left
-
-    def get_top(self):
-        return self.rect.top
-
-    def move(self):
-        self.rect = self.rect.move(self.speedX, self.speedY)
-
-
-def create_sprite(stype):
-    fname = 'meanie.png'
-    if stype != 'enemy':
-        fname = 'bonus.png'
-    return Sprite(fname)
-
-# def create_sprite1(stype):
-#     '''Creates a sprite of a specified type'''
-#     sprite = None
-#     sprite_speed = random.randint(2, 5)
-#     if random.randint(0, 1):
-#         sprite_speed = -sprite_speed
-
-#     sprite_rect = None
-
-#     sprite_direction_vertical = False
-#     if random.randint(0, 1):
-#         sprite_direction_vertical = True
-
-#     if stype == 'enemy':
-#         sprite = pygame.image.load('meanie.png').convert_alpha()
-#     else:
-#         sprite = pygame.image.load('bonus.png').convert_alpha()
-
-#     left, top = 0, 0
-
-#     if sprite_direction_vertical:
-#         left = random.randint(0, width - sprite.get_width())
-#         if sprite_speed > 0:
-#             top  = -sprite.get_height()
-#         else:
-#             top = height
-#     else:
-#         top = random.randint(0, height - sprite.get_height())
-#         if sprite_speed > 0:
-#             left  = -sprite.get_width()
-#         else:
-#             left = width
-
-#     sprite_rect = pygame.Rect(left, top, *sprite.get_size())
+    sprite_rect = pygame.Rect(left, top, *sprite.get_size())
     
-#     return [sprite, sprite_rect, sprite_speed, sprite_direction_vertical]
+    return [sprite, sprite_rect, sprite_speed, sprite_direction_vertical]
 
 ### Setup ###
 
@@ -156,7 +112,6 @@ player_speed = 5
 CREATE_ENEMY = pygame.USEREVENT + 1
 pygame.time.set_timer(CREATE_ENEMY, 1500)
 enemies = []
-enemy_view_range = 100
 
 # Bonuses setup
 CREATE_BONUS = pygame.USEREVENT + 2
@@ -206,49 +161,22 @@ while is_working:
     # Process enemies
 
     for enemy in enemies:
-        # Calculate the view range
-        minX = enemy.get_left() - enemy_view_range
-        minY = enemy.get_top() - enemy_view_range
+        # Check if an asteroid is near and change direction
 
-        rangeW = enemy_view_range * 2 + enemy.get_width()
-        rangeH = enemy_view_range * 2 + enemy.get_height()
-
-        view_range = pygame.Rect(minX, minY, rangeW, rangeH)
-
-        # Check if an asteroid is near and change direction to the nearest
-        nearest_bonus = None
-        mindX = enemy_view_range
-        mindY = enemy_view_range
-
-        for bonus in bonuses:
-            if bonus.rect.colliderect(view_range):
-                dX = bonus.get_left() - enemy.get_left()
-                dY = bonus.get_top() < enemy.get_top()
-                if mindX > dX and mindY > dY:
-                    mindX = dX
-                    mindY = dY
-                    nearest_bonus = bonus
         
-        if nearest_bonus:
-            if mindX < 0 and enemy.speedX > 0:
-                enemy.speedX = - enemy.speedX
-            elif mindX > 0 and enemy.speedX < 0:
-                enemy.speedX = - enemy.speedX
 
-            if mindY < 0 and enemy.speedY > 0:
-                enemy.speedY = - enemy.speedY
-            elif mindY > 0 and enemy.speedY < 0:
-                enemy.speedY = - enemy.speedY
+        # Continue moving if the enemy does not see asteroids
+        if enemy[SPRITE_DIRECTION_VERTICAL]:
+            enemy[SPRITE_RECT] = enemy[SPRITE_RECT].move(0, enemy[SPRITE_SPEED])
+        else:
+            enemy[SPRITE_RECT] = enemy[SPRITE_RECT].move(enemy[SPRITE_SPEED], 0)
 
+        main_surface.blit(enemy[SPRITE], enemy[SPRITE_RECT])
 
-        enemy.move()
-
-        main_surface.blit(enemy.sprite, enemy.rect)
-
-        if enemy.rect.right < 0:
+        if enemy[SPRITE_RECT].right < 0:
             enemies.pop(enemies.index(enemy))
         # If the same enemy collides both with the left border and the player
-        elif player_rect.colliderect(enemy.rect):
+        elif player_rect.colliderect(enemy[SPRITE_RECT]):
             enemies.pop(enemies.index(enemy))
             score -= 1
             if score < 0:
@@ -259,14 +187,17 @@ while is_working:
     # Process bonuses
 
     for bonus in bonuses:
-        bonus.move()
+        if bonus[SPRITE_DIRECTION_VERTICAL]:
+            bonus[SPRITE_RECT] = bonus[SPRITE_RECT].move(0, bonus[SPRITE_SPEED])
+        else:
+            bonus[SPRITE_RECT] = bonus[SPRITE_RECT].move(bonus[SPRITE_SPEED], 0)
 
-        main_surface.blit(bonus.sprite, bonus.rect)
+        main_surface.blit(bonus[SPRITE], bonus[SPRITE_RECT])
 
-        if bonus.get_left() > width:
+        if bonus[SPRITE_RECT].left > width:
             bonuses.pop(bonuses.index(bonus))
 
-        elif player_rect.colliderect(bonus.rect):
+        elif player_rect.colliderect(bonus[SPRITE_RECT]):
             bonuses.pop(bonuses.index(bonus))
             score += 1
             if score >= max_score:
@@ -275,7 +206,7 @@ while is_working:
 
         else:
             for enemy in enemies:
-                if bonus.rect.colliderect(enemy.rect):
+                if bonus[SPRITE_RECT].colliderect(enemy[SPRITE_RECT]):
                     if bonus in bonuses:
                         bonuses.pop(bonuses.index(bonus))
                         enemy_score += 1
